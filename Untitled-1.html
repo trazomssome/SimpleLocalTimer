@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>멀티 타이머 (로컬 1파일)</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --panel: #121623;
+      --panel2: #0f1320;
+      --text: #e9edf7;
+      --muted: #a9b2c7;
+      --line: rgba(255,255,255,.08);
+      --good: #4ade80;
+      --warn: #f97316;
+      --bad: #fb7185;
+      --accent: #60a5fa;
+      --shadow: 0 12px 30px rgba(0,0,0,.35);
+      --r: 16px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Apple SD Gothic Neo, "Noto Sans KR", "Malgun Gothic", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background: radial-gradient(1200px 600px at 20% 0%, rgba(96,165,250,.18), transparent),
+                  radial-gradient(900px 500px at 90% 20%, rgba(74,222,128,.12), transparent),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .app {
+      width: min(1100px, 100%);
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 16px;
+    }
+
+    header {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 16px 16px;
+      box-shadow: var(--shadow);
+    }
+    .title {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .title h1 {
+      font-size: 18px;
+      margin: 0;
+      letter-spacing: -0.2px;
+    }
+    .title .sub {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    button, input, select {
+      font: inherit;
+      color: inherit;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: transform .05s ease, background .15s ease, border-color .15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+    .btn:hover { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.14); }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary { background: rgba(96,165,250,.18); border-color: rgba(96,165,250,.35); }
+    .btn.primary:hover { background: rgba(96,165,250,.25); }
+    .btn.danger { background: rgba(251,113,133,.14); border-color: rgba(251,113,133,.32); }
+    .btn.danger:hover { background: rgba(251,113,133,.22); }
+
+    .panel {
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .new-timer {
+      display: grid;
+      grid-template-columns: 1.4fr .8fr .8fr auto;
+      gap: 10px;
+      align-items: end;
+    }
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .field input {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.15);
+      border-radius: 12px;
+      padding: 10px 12px;
+      outline: none;
+    }
+    .field input:focus { border-color: rgba(96,165,250,.55); box-shadow: 0 0 0 3px rgba(96,165,250,.12); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    @media (max-width: 980px) {
+      .new-timer { grid-template-columns: 1fr 1fr 1fr; }
+      .new-timer .field:last-of-type { grid-column: 1 / -1; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      position: relative;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 14px;
+      box-shadow: 0 10px 24px rgba(0,0,0,.26);
+      overflow: hidden;
+    }
+
+    .card.done {
+      border-color: rgba(74,222,128,.55);
+      box-shadow: 0 0 0 2px rgba(74,222,128,.12), 0 14px 30px rgba(0,0,0,.33);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { transform: translateY(0); }
+      50% { transform: translateY(-1px); }
+    }
+
+    .card .top {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .name {
+      font-weight: 650;
+      letter-spacing: -0.2px;
+      margin: 0 0 6px 0;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    .meta {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .time {
+      font-family: var(--mono);
+      font-size: 34px;
+      letter-spacing: -1px;
+      margin: 12px 0 10px;
+    }
+
+    .progress {
+      height: 8px;
+      background: rgba(255,255,255,.06);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.08);
+    }
+    .bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(96,165,250,.9), rgba(74,222,128,.9));
+      transition: width .25s ease;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .actions .btn { padding: 9px 10px; border-radius: 12px; }
+
+    .pill {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.04);
+    }
+    .pill.running { border-color: rgba(96,165,250,.40); background: rgba(96,165,250,.12); }
+    .pill.paused  { border-color: rgba(249,115,22,.40); background: rgba(249,115,22,.12); }
+    .pill.done    { border-color: rgba(74,222,128,.50); background: rgba(74,222,128,.12); }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 10px;
+      line-height: 1.45;
+    }
+
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,.03);
+    }
+    .toggle input { transform: translateY(1px); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="title">
+        <h1>멀티 타이머</h1>
+        <div class="sub">로컬 1파일 · 설정 자동 저장 · 완료 시 강조 표시</div>
+      </div>
+      <div class="toolbar">
+        <label class="toggle" title="완료 시 브라우저 알림">
+          <input id="notifyToggle" type="checkbox" />
+          알림
+        </label>
+        <label class="toggle" title="완료 시 짧은 비프음">
+          <input id="beepToggle" type="checkbox" checked />
+          비프
+        </label>
+        <button class="btn" id="exportBtn" title="JSON으로 내보내기">내보내기</button>
+        <button class="btn" id="importBtn" title="JSON 붙여넣기 후 가져오기">가져오기</button>
+        <button class="btn danger" id="clearBtn" title="모든 타이머/설정 삭제">전체 삭제</button>
+      </div>
+    </header>
+
+    <div class="panel">
+      <div class="new-timer">
+        <div class="field">
+          <label>타이머 이름</label>
+          <input id="nameInput" placeholder="예: Dispenser Warmup / LVDT 안정화" />
+        </div>
+        <div class="field">
+          <label>분 (minutes)</label>
+          <input id="minInput" type="number" min="0" step="1" value="0" />
+        </div>
+        <div class="field">
+          <label>초 (seconds)</label>
+          <input id="secInput" type="number" min="0" step="1" value="30" />
+        </div>
+        <div class="field">
+          <button class="btn primary" id="addBtn">+ 타이머 추가</button>
+          <div class="small" style="margin-top:8px;">
+            팁: 타이머 카드에서 이름/시간은 언제든 수정 가능
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div id="grid" class="grid"></div>
+      <div class="hint">
+        • <b>Start</b>: 시작/재개 · <b>Pause</b>: 일시정지 · <b>Reset</b>: 설정 시간으로 리셋<br/>
+        • 완료(0초) 시 카드가 초록색으로 강조됩니다. (비프/알림 옵션 가능)
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ======= Storage =======
+    const STORAGE_KEY = "multi_timer_app_v1";
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    }
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    // ======= Utilities =======
+    const uid = () => Math.random().toString(36).slice(2, 10) + "-" + Date.now().toString(36);
+
+    function clamp(n, min, max) {
+      n = Number.isFinite(n) ? n : min;
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function formatMs(ms) {
+      ms = Math.max(0, ms|0);
+      const totalSec = Math.ceil(ms / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+    }
+
+    // ======= Beep (WebAudio) =======
+    function beepOnce() {
+      if (!state.settings.beepEnabled) return;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = "sine";
+        osc.frequency.value = 880;
+
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+
+        setTimeout(() => ctx.close(), 250);
+      } catch {}
+    }
+
+    // ======= Notification =======
+    async function ensureNotificationPermission() {
+      if (!("Notification" in window)) return false;
+      if (Notification.permission === "granted") return true;
+      if (Notification.permission === "denied") return false;
+      try {
+        const res = await Notification.requestPermission();
+        return res === "granted";
+      } catch {
+        return false;
+      }
+    }
+
+    async function notify(title, body) {
+      if (!state.settings.notifyEnabled) return;
+      const ok = await ensureNotificationPermission();
+      if (!ok) return;
+      try {
+        new Notification(title, { body });
+      } catch {}
+    }
+
+    // ======= App State =======
+    const defaultState = {
+      settings: {
+        beepEnabled: true,
+        notifyEnabled: false,
+      },
+      timers: []
+      // timer: {
+      //   id, name,
+      //   durationMs, remainingMs,
+      //   running, done,
+      //   lastTickTs (epoch ms),
+      //   alerted (to avoid repeat)
+      // }
+    };
+
+    let state = loadState() ?? structuredClone(defaultState);
+
+    // ======= DOM =======
+    const gridEl = document.getElementById("grid");
+    const nameInput = document.getElementById("nameInput");
+    const minInput = document.getElementById("minInput");
+    const secInput = document.getElementById("secInput");
+    const addBtn = document.getElementById("addBtn");
+
+    const beepToggle = document.getElementById("beepToggle");
+    const notifyToggle = document.getElementById("notifyToggle");
+    const clearBtn = document.getElementById("clearBtn");
+    const exportBtn = document.getElementById("exportBtn");
+    const importBtn = document.getElementById("importBtn");
+
+    // Init toggles
+    beepToggle.checked = !!state.settings.beepEnabled;
+    notifyToggle.checked = !!state.settings.notifyEnabled;
+
+    beepToggle.addEventListener("change", () => {
+      state.settings.beepEnabled = beepToggle.checked;
+      saveState();
+    });
+
+    notifyToggle.addEventListener("change", async () => {
+      state.settings.notifyEnabled = notifyToggle.checked;
+      saveState();
+      if (state.settings.notifyEnabled) {
+        await ensureNotificationPermission();
+      }
+    });
+
+    // ======= Core Logic =======
+    function addTimer({ name, minutes, seconds }) {
+      const durMs = (clamp(minutes, 0, 9999) * 60 + clamp(seconds, 0, 59)) * 1000;
+      if (durMs <= 0) return;
+
+      state.timers.unshift({
+        id: uid(),
+        name: (name ?? "").trim() || "Unnamed Timer",
+        durationMs: durMs,
+        remainingMs: durMs,
+        running: false,
+        done: false,
+        lastTickTs: null,
+        alerted: false,
+        createdAt: Date.now()
+      });
+      saveState();
+      render();
+    }
+
+    function removeTimer(id) {
+      state.timers = state.timers.filter(t => t.id !== id);
+      saveState();
+      render();
+    }
+
+    function startTimer(id) {
+      const t = state.timers.find(x => x.id === id);
+      if (!t) return;
+      if (t.done) return; // done 상태에서는 Reset 후 start 권장
+      t.running = true;
+      t.lastTickTs = Date.now();
+      saveState();
+      render();
+    }
+
+    function pauseTimer(id) {
+      const t = state.timers.find(x => x.id === id);
+      if (!t) return;
+      tickOne(t); // stop 전에 한번 반영
+      t.running = false;
+      t.lastTickTs = null;
+      saveState();
+      render();
+    }
+
+    function resetTimer(id) {
+      const t = state.timers.find(x => x.id === id);
+      if (!t) return;
+      t.remainingMs = t.durationMs;
+      t.running = false;
+      t.done = false;
+      t.alerted = false;
+      t.lastTickTs = null;
+      saveState();
+      render();
+    }
+
+    function updateTimerName(id, name) {
+      const t = state.timers.find(x => x.id === id);
+      if (!t) return;
+      t.name = (name ?? "").trim() || "Unnamed Timer";
+      saveState();
+      // render는 입력 중 깜빡임 줄이기 위해 최소화 가능하지만 여기선 단순 처리
+    }
+
+    function updateTimerDuration(id, minutes, seconds) {
+      const t = state.timers.find(x => x.id === id);
+      if (!t) return;
+      const durMs = (clamp(minutes, 0, 9999) * 60 + clamp(seconds, 0, 59)) * 1000;
+      if (durMs <= 0) return;
+      t.durationMs = durMs;
+      // duration 변경 시 remaining도 "현재 진행률" 유지가 애매하므로, 사용성 위해 리셋
+      t.remainingMs = durMs;
+      t.running = false;
+      t.done = false;
+      t.alerted = false;
+      t.lastTickTs = null;
+      saveState();
+      render();
+    }
+
+    function tickOne(t) {
+      if (!t.running || t.done) return;
+      const now = Date.now();
+      const last = t.lastTickTs ?? now;
+      const dt = Math.max(0, now - last);
+      t.lastTickTs = now;
+
+      t.remainingMs -= dt;
+
+      if (t.remainingMs <= 0) {
+        t.remainingMs = 0;
+        t.done = true;
+        t.running = false;
+        t.lastTickTs = null;
+
+        if (!t.alerted) {
+          t.alerted = true;
+          // 알림/비프
+          beepOnce();
+          notify("타이머 완료", t.name);
+        }
+      }
+    }
+
+    function tickAll() {
+      let changed = false;
+      for (const t of state.timers) {
+        const before = t.remainingMs;
+        const beforeDone = t.done;
+        const beforeRunning = t.running;
+        tickOne(t);
+        if (t.remainingMs !== before || t.done !== beforeDone || t.running !== beforeRunning) {
+          changed = true;
+        }
+      }
+      if (changed) saveState();
+      renderTimeOnly(); // 매 프레임 full render 대신 시간/진행률만 업데이트
+    }
+
+    // ======= Rendering =======
+    function render() {
+      gridEl.innerHTML = "";
+      for (const t of state.timers) {
+        gridEl.appendChild(renderCard(t));
+      }
+      // ensure time reflects right away
+      renderTimeOnly();
+    }
+
+    function statusPill(t) {
+      if (t.done) return `<span class="pill done">DONE</span>`;
+      if (t.running) return `<span class="pill running">RUNNING</span>`;
+      return `<span class="pill paused">PAUSED</span>`;
+    }
+
+    function renderCard(t) {
+      const card = document.createElement("div");
+      card.className = "card" + (t.done ? " done" : "");
+      card.dataset.id = t.id;
+
+      const durSec = Math.round(t.durationMs / 1000);
+      const durM = Math.floor(durSec / 60);
+      const durS = durSec % 60;
+
+      card.innerHTML = `
+        <div class="top">
+          <div style="flex:1;">
+            <div class="name-row">
+              <input class="nameInput" value="${escapeHtml(t.name)}" title="이름 수정" />
+            </div>
+            <div class="meta">
+              ${statusPill(t)}
+              <span class="pill">설정 ${String(durM).padStart(2,"0")}:${String(durS).padStart(2,"0")}</span>
+            </div>
+          </div>
+          <button class="btn danger removeBtn" title="삭제">삭제</button>
+        </div>
+
+        <div class="time timeText">${formatMs(t.remainingMs)}</div>
+
+        <div class="progress"><div class="bar"></div></div>
+
+        <div class="actions">
+          <button class="btn startBtn">${t.running ? "Running..." : "Start"}</button>
+          <button class="btn pauseBtn">Pause</button>
+          <button class="btn resetBtn">Reset</button>
+          <button class="btn editBtn" title="시간 설정 변경">시간 수정</button>
+        </div>
+      `;
+
+      // Events
+      card.querySelector(".removeBtn").addEventListener("click", () => removeTimer(t.id));
+      card.querySelector(".startBtn").addEventListener("click", () => startTimer(t.id));
+      card.querySelector(".pauseBtn").addEventListener("click", () => pauseTimer(t.id));
+      card.querySelector(".resetBtn").addEventListener("click", () => resetTimer(t.id));
+
+      const nameEl = card.querySelector(".nameInput");
+      nameEl.addEventListener("input", (e) => updateTimerName(t.id, e.target.value));
+      nameEl.addEventListener("blur", () => { saveState(); render(); });
+
+      // duration edit popup (prompt 기반 - 1파일 간단 버전)
+      card.querySelector(".editBtn").addEventListener("click", () => {
+        const curSec = Math.round(t.durationMs/1000);
+        const curM = Math.floor(curSec/60);
+        const curS = curSec % 60;
+        const mm = prompt("분(minutes)을 입력하세요", String(curM));
+        if (mm === null) return;
+        const ss = prompt("초(seconds)을 입력하세요 (0~59)", String(curS));
+        if (ss === null) return;
+        updateTimerDuration(t.id, Number(mm), Number(ss));
+      });
+
+      return card;
+    }
+
+    function renderTimeOnly() {
+      // 카드의 시간 텍스트와 진행률 바만 업데이트 (전체 DOM 재생성 X)
+      const cards = gridEl.querySelectorAll(".card");
+      for (const card of cards) {
+        const id = card.dataset.id;
+        const t = state.timers.find(x => x.id === id);
+        if (!t) continue;
+
+        const timeEl = card.querySelector(".timeText");
+        if (timeEl) timeEl.textContent = formatMs(t.remainingMs);
+
+        const bar = card.querySelector(".bar");
+        if (bar) {
+          const done = t.durationMs > 0 ? (1 - (t.remainingMs / t.durationMs)) : 0;
+          const pct = clamp(done, 0, 1) * 100;
+          bar.style.width = pct.toFixed(2) + "%";
+        }
+
+        const shouldDone = t.done;
+        card.classList.toggle("done", shouldDone);
+
+        // 상태 pill 갱신 (간단하게 전체 re-render 대신 meta만 교체)
+        const meta = card.querySelector(".meta");
+        if (meta) {
+          meta.innerHTML = `
+            ${statusPill(t)}
+            <span class="pill">설정 ${formatMs(t.durationMs)}</span>
+          `;
+        }
+
+        // Start 버튼 라벨 간단 업데이트
+        const startBtn = card.querySelector(".startBtn");
+        if (startBtn) startBtn.textContent = t.running ? "Running..." : "Start";
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    // ======= Top Actions =======
+    addBtn.addEventListener("click", () => {
+      addTimer({
+        name: nameInput.value,
+        minutes: Number(minInput.value || 0),
+        seconds: Number(secInput.value || 0),
+      });
+    });
+
+    // Enter로 추가
+    [nameInput, minInput, secInput].forEach(el => {
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") addBtn.click();
+      });
+    });
+
+    clearBtn.addEventListener("click", () => {
+      if (!confirm("모든 타이머와 설정을 삭제할까요?")) return;
+      state = structuredClone(defaultState);
+      localStorage.removeItem(STORAGE_KEY);
+      beepToggle.checked = state.settings.beepEnabled;
+      notifyToggle.checked = state.settings.notifyEnabled;
+      render();
+    });
+
+    exportBtn.addEventListener("click", async () => {
+      const data = JSON.stringify(state, null, 2);
+      // 클립보드 복사 + prompt 백업
+      try {
+        await navigator.clipboard.writeText(data);
+        alert("설정 JSON을 클립보드에 복사했습니다.");
+      } catch {
+        prompt("아래 JSON을 복사해서 저장하세요:", data);
+      }
+    });
+
+    importBtn.addEventListener("click", () => {
+      const text = prompt("붙여넣기: 이전에 내보낸 JSON을 입력하세요.");
+      if (!text) return;
+      try {
+        const obj = JSON.parse(text);
+        if (!obj || typeof obj !== "object") throw new Error("invalid");
+        // 매우 단순 검증
+        if (!obj.settings || !Array.isArray(obj.timers)) throw new Error("invalid shape");
+
+        state = obj;
+        // 토글 동기화
+        beepToggle.checked = !!state.settings.beepEnabled;
+        notifyToggle.checked = !!state.settings.notifyEnabled;
+
+        saveState();
+        render();
+        alert("가져오기 완료!");
+      } catch {
+        alert("가져오기 실패: JSON 형식이 올바르지 않습니다.");
+      }
+    });
+
+    // ======= Background Tick =======
+    render();
+    setInterval(tickAll, 200);
+
+    // 탭이 비활성화되었다가 돌아올 때 오차 보정
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        // 복귀 시 한번 강제 tick
+        for (const t of state.timers) {
+          tickOne(t);
+        }
+        saveState();
+        render();
+      }
+    });
+  </script>
+</body>
+</html>
