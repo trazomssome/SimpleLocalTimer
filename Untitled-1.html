@@ -109,11 +109,62 @@
       box-shadow: var(--shadow);
     }
 
+    .panel-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
     .new-timer {
       display: grid;
       grid-template-columns: 1.4fr .8fr .8fr auto;
       gap: 10px;
       align-items: end;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(2,4,8,.74);
+      backdrop-filter: blur(3px);
+      z-index: 99;
+    }
+    .modal.open { display: flex; }
+
+    .modal-card {
+      width: min(520px, 100%);
+      background: linear-gradient(180deg, rgba(18,22,35,.98), rgba(14,18,30,.98));
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: var(--r);
+      padding: 16px;
+      box-shadow: 0 20px 46px rgba(0,0,0,.52);
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      gap: 8px;
+    }
+
+    .modal-title {
+      margin: 0;
+      font-size: 16px;
+      letter-spacing: -0.2px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 14px;
     }
     .field label {
       display: block;
@@ -178,6 +229,25 @@
       margin: 0 0 6px 0;
       line-height: 1.2;
       word-break: break-word;
+      color: #f8fbff;
+      text-shadow: 0 1px 10px rgba(96,165,250,.16);
+    }
+
+    .name-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .name-edit {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      color: var(--muted);
+      border-radius: 10px;
+      padding: 4px 8px;
+      cursor: pointer;
     }
 
     .meta {
@@ -275,8 +345,32 @@
     </header>
 
     <div class="panel">
-      <div class="new-timer">
-        <div class="field">
+      <div class="panel-top">
+        <div>
+          <div style="font-weight: 650;">타이머 생성</div>
+          <div class="small">이름/시간 입력창은 다크 팝업으로 표시됩니다.</div>
+        </div>
+        <button class="btn primary" id="openAddModalBtn">+ 타이머 추가</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div id="grid" class="grid"></div>
+      <div class="hint">
+        • <b>Start</b>: 시작/재개 · <b>Pause</b>: 일시정지 · <b>Reset</b>: 설정 시간으로 리셋<br/>
+        • 완료(0초) 시 카드가 초록색으로 강조됩니다. (비프/알림 옵션 가능)
+      </div>
+    </div>
+  </div>
+
+  <div id="timerModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 class="modal-title" id="modalTitle">타이머 추가</h2>
+        <button class="btn" id="closeModalBtn" type="button">닫기</button>
+      </div>
+      <div class="new-timer" style="grid-template-columns: 1fr 1fr 1fr;">
+        <div class="field" style="grid-column: 1 / -1;">
           <label>타이머 이름</label>
           <input id="nameInput" placeholder="예: Dispenser Warmup / LVDT 안정화" />
         </div>
@@ -288,20 +382,9 @@
           <label>초 (seconds)</label>
           <input id="secInput" type="number" min="0" step="1" value="30" />
         </div>
-        <div class="field">
-          <button class="btn primary" id="addBtn">+ 타이머 추가</button>
-          <div class="small" style="margin-top:8px;">
-            팁: 타이머 카드에서 이름/시간은 언제든 수정 가능
-          </div>
-        </div>
       </div>
-    </div>
-
-    <div class="panel">
-      <div id="grid" class="grid"></div>
-      <div class="hint">
-        • <b>Start</b>: 시작/재개 · <b>Pause</b>: 일시정지 · <b>Reset</b>: 설정 시간으로 리셋<br/>
-        • 완료(0초) 시 카드가 초록색으로 강조됩니다. (비프/알림 옵션 가능)
+      <div class="modal-actions">
+        <button class="btn primary" id="addBtn" type="button">추가하기</button>
       </div>
     </div>
   </div>
@@ -411,6 +494,9 @@
     const minInput = document.getElementById("minInput");
     const secInput = document.getElementById("secInput");
     const addBtn = document.getElementById("addBtn");
+    const timerModal = document.getElementById("timerModal");
+    const openAddModalBtn = document.getElementById("openAddModalBtn");
+    const closeModalBtn = document.getElementById("closeModalBtn");
 
     const beepToggle = document.getElementById("beepToggle");
     const notifyToggle = document.getElementById("notifyToggle");
@@ -436,6 +522,15 @@
     });
 
     // ======= Core Logic =======
+    function openModal() {
+      timerModal.classList.add("open");
+      setTimeout(() => nameInput.focus(), 20);
+    }
+
+    function closeModal() {
+      timerModal.classList.remove("open");
+    }
+
     function addTimer({ name, minutes, seconds }) {
       const durMs = (clamp(minutes, 0, 9999) * 60 + clamp(seconds, 0, 59)) * 1000;
       if (durMs <= 0) return;
@@ -453,6 +548,10 @@
       });
       saveState();
       render();
+      closeModal();
+      nameInput.value = "";
+      minInput.value = "0";
+      secInput.value = "30";
     }
 
     function removeTimer(id) {
@@ -585,7 +684,8 @@
         <div class="top">
           <div style="flex:1;">
             <div class="name-row">
-              <input class="nameInput" value="${escapeHtml(t.name)}" title="이름 수정" />
+              <h3 class="name">${escapeHtml(t.name)}</h3>
+              <button class="name-edit" title="이름 수정">이름 수정</button>
             </div>
             <div class="meta">
               ${statusPill(t)}
@@ -613,9 +713,12 @@
       card.querySelector(".pauseBtn").addEventListener("click", () => pauseTimer(t.id));
       card.querySelector(".resetBtn").addEventListener("click", () => resetTimer(t.id));
 
-      const nameEl = card.querySelector(".nameInput");
-      nameEl.addEventListener("input", (e) => updateTimerName(t.id, e.target.value));
-      nameEl.addEventListener("blur", () => { saveState(); render(); });
+      card.querySelector(".name-edit").addEventListener("click", () => {
+        const newName = prompt("새 타이머 이름을 입력하세요", t.name);
+        if (newName === null) return;
+        updateTimerName(t.id, newName);
+        render();
+      });
 
       // duration edit popup (prompt 기반 - 1파일 간단 버전)
       card.querySelector(".editBtn").addEventListener("click", () => {
@@ -686,10 +789,17 @@
       });
     });
 
+    openAddModalBtn.addEventListener("click", openModal);
+    closeModalBtn.addEventListener("click", closeModal);
+    timerModal.addEventListener("click", (e) => {
+      if (e.target === timerModal) closeModal();
+    });
+
     // Enter로 추가
     [nameInput, minInput, secInput].forEach(el => {
       el.addEventListener("keydown", (e) => {
         if (e.key === "Enter") addBtn.click();
+        if (e.key === "Escape") closeModal();
       });
     });
 
